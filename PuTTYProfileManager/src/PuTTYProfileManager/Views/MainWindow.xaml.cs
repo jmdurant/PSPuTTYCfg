@@ -1,5 +1,5 @@
 using System.Windows;
-using PuTTYProfileManager.Services;
+using PuTTYProfileManager.Core.Services;
 using PuTTYProfileManager.ViewModels;
 
 namespace PuTTYProfileManager.Views;
@@ -10,8 +10,8 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
 
-        var registryService = new SessionRegistryService();
+        var sessionService = new RegistrySessionService();
         var archiveService = new SessionArchiveService();
-        DataContext = new MainWindowViewModel(registryService, archiveService);
+        DataContext = new MainWindowViewModel(sessionService, archiveService);
     }
 }

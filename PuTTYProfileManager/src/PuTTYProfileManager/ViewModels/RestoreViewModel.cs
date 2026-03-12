@@ -4,15 +4,16 @@ using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
+using PuTTYProfileManager.Core.Models;
+using PuTTYProfileManager.Core.Services;
 using PuTTYProfileManager.Models;
-using PuTTYProfileManager.Services;
 using PuTTYProfileManager.Views;
 
 namespace PuTTYProfileManager.ViewModels;
 
 public partial class RestoreViewModel : ObservableObject
 {
-    private readonly ISessionRegistryService _registryService;
+    private readonly ISessionService _registryService;
     private readonly ISessionArchiveService _archiveService;
     private readonly Action<string> _setStatus;
     private string? _archivePassword;
@@ -42,7 +43,7 @@ public partial class RestoreViewModel : ObservableObject
     public int SelectedCount => ArchivedSessions.Count(s => s.IsSelected);
     public int TotalCount => ArchivedSessions.Count;
 
-    public RestoreViewModel(ISessionRegistryService registryService, ISessionArchiveService archiveService, Action<string> setStatus)
+    public RestoreViewModel(ISessionService registryService, ISessionArchiveService archiveService, Action<string> setStatus)
     {
         _registryService = registryService;
         _archiveService = archiveService;

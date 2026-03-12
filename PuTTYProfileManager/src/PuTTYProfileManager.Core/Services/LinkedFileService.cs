@@ -1,7 +1,7 @@
 using System.IO;
-using PuTTYProfileManager.Models;
+using PuTTYProfileManager.Core.Models;
 
-namespace PuTTYProfileManager.Services;
+namespace PuTTYProfileManager.Core.Services;
 
 public static class LinkedFileService
 {
@@ -33,7 +33,6 @@ public static class LinkedFileService
                 if (string.IsNullOrWhiteSpace(path))
                     continue;
 
-                // Expand environment variables
                 path = Environment.ExpandEnvironmentVariables(path);
 
                 if (!seen.Add(path))
@@ -56,9 +55,6 @@ public static class LinkedFileService
 
     public static string GetZipEntryName(string originalPath)
     {
-        // Use just the filename, but prefix with a hash of the directory
-        // to avoid collisions when different sessions reference files
-        // with the same name in different directories
         var dir = Path.GetDirectoryName(originalPath) ?? "";
         var hash = Math.Abs(dir.GetHashCode()).ToString("x8");
         var fileName = Path.GetFileName(originalPath);
@@ -76,7 +72,6 @@ public static class LinkedFileService
             if (string.IsNullOrWhiteSpace(originalPath))
                 continue;
 
-            // Expand env vars for lookup
             var expandedPath = Environment.ExpandEnvironmentVariables(originalPath);
 
             if (fileMapping.TryGetValue(expandedPath, out var zipEntryName))

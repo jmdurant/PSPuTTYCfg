@@ -3,15 +3,16 @@ using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
+using PuTTYProfileManager.Core.Models;
+using PuTTYProfileManager.Core.Services;
 using PuTTYProfileManager.Models;
-using PuTTYProfileManager.Services;
 using PuTTYProfileManager.Views;
 
 namespace PuTTYProfileManager.ViewModels;
 
 public partial class BackupViewModel : ObservableObject
 {
-    private readonly ISessionRegistryService _registryService;
+    private readonly ISessionService _registryService;
     private readonly ISessionArchiveService _archiveService;
     private readonly Action<string> _setStatus;
 
@@ -31,7 +32,7 @@ public partial class BackupViewModel : ObservableObject
     public int TotalCount => Sessions.Count;
     public int LinkedFileCount => LinkedFiles.Count(f => f.Exists);
 
-    public BackupViewModel(ISessionRegistryService registryService, ISessionArchiveService archiveService, Action<string> setStatus)
+    public BackupViewModel(ISessionService registryService, ISessionArchiveService archiveService, Action<string> setStatus)
     {
         _registryService = registryService;
         _archiveService = archiveService;

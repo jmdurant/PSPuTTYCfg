@@ -3,6 +3,8 @@
     <Project Path="setup/PuTTYProfileManagerSetup.wixproj" Type="b7dd6f7e-def8-4e67-b5b7-07ef123db6f0" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="src/PuTTYProfileManager.Cli/PuTTYProfileManager.Cli.csproj" />
+    <Project Path="src/PuTTYProfileManager.Core/PuTTYProfileManager.Core.csproj" />
     <Project Path="src/PuTTYProfileManager/PuTTYProfileManager.csproj" />
   </Folder>
 </Solution>

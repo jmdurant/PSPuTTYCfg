@@ -1,6 +1,6 @@
 using Microsoft.Win32;
 
-namespace PuTTYProfileManager.Models;
+namespace PuTTYProfileManager.Core.Models;
 
 public class RegistrySettingValue
 {

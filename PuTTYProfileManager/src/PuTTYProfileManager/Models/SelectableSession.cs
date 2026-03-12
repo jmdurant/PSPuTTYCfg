@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using PuTTYProfileManager.Core.Models;
 
 namespace PuTTYProfileManager.Models;
 

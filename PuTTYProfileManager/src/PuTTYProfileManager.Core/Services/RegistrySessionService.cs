@@ -1,11 +1,18 @@
+using System.Runtime.InteropServices;
 using Microsoft.Win32;
-using PuTTYProfileManager.Models;
+using PuTTYProfileManager.Core.Models;
 
-namespace PuTTYProfileManager.Services;
+namespace PuTTYProfileManager.Core.Services;
 
-public class SessionRegistryService : ISessionRegistryService
+public class RegistrySessionService : ISessionService
 {
     private const string PuttySessionsPath = @"SOFTWARE\SimonTatham\PuTTY\Sessions";
+
+    public RegistrySessionService()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            throw new PlatformNotSupportedException("Registry-based sessions are only available on Windows.");
+    }
 
     public List<PuttySession> GetAllSessions()
     {

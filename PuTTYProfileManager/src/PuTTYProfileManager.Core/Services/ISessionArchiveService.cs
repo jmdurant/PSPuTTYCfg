@@ -1,6 +1,6 @@
-using PuTTYProfileManager.Models;
+using PuTTYProfileManager.Core.Models;
 
-namespace PuTTYProfileManager.Services;
+namespace PuTTYProfileManager.Core.Services;
 
 public interface ISessionArchiveService
 {

@@ -18,14 +18,17 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
-      - name: Restore dependencies
-        run: dotnet restore PuTTYProfileManager\src\PuTTYProfileManager\PuTTYProfileManager.csproj
+      - name: Restore solution
+        run: dotnet restore PuTTYProfileManager\PuTTYProfileManager.slnx
 
-      - name: Build app (Release)
-        run: dotnet build PuTTYProfileManager\src\PuTTYProfileManager\PuTTYProfileManager.csproj -c Release --no-restore
+      - name: Build solution (Release)
+        run: dotnet build PuTTYProfileManager\PuTTYProfileManager.slnx -c Release --no-restore
 
-      - name: Publish app (framework-dependent)
+      - name: Publish GUI (framework-dependent)
         run: dotnet publish PuTTYProfileManager\src\PuTTYProfileManager\PuTTYProfileManager.csproj -c Release -r win-x64 --self-contained false -o PuTTYProfileManager\publish
+
+      - name: Publish CLI (cross-platform)
+        run: dotnet publish PuTTYProfileManager\src\PuTTYProfileManager.Cli\PuTTYProfileManager.Cli.csproj -c Release -o PuTTYProfileManager\publish-cli
 
       - name: Build WiX installer
         run: dotnet build PuTTYProfileManager\setup\PuTTYProfileManagerSetup.wixproj -c Release
@@ -35,6 +38,12 @@ jobs:
         with:
           name: PuTTYProfileManagerSetup
           path: PuTTYProfileManager\setup\bin\Release\*.msi
+
+      - name: Upload CLI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: puttymgr-cli
+          path: PuTTYProfileManager\publish-cli\
 
   release:
     needs: build
@@ -52,14 +61,17 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
-      - name: Restore dependencies
-        run: dotnet restore PuTTYProfileManager\src\PuTTYProfileManager\PuTTYProfileManager.csproj
-
-      - name: Publish app (framework-dependent)
+      - name: Publish GUI (framework-dependent)
         run: dotnet publish PuTTYProfileManager\src\PuTTYProfileManager\PuTTYProfileManager.csproj -c Release -r win-x64 --self-contained false -o PuTTYProfileManager\publish
+
+      - name: Publish CLI (cross-platform)
+        run: dotnet publish PuTTYProfileManager\src\PuTTYProfileManager.Cli\PuTTYProfileManager.Cli.csproj -c Release -o PuTTYProfileManager\publish-cli
 
       - name: Build WiX installer
         run: dotnet build PuTTYProfileManager\setup\PuTTYProfileManagerSetup.wixproj -c Release
+
+      - name: Zip CLI for release
+        run: Compress-Archive -Path PuTTYProfileManager\publish-cli\* -DestinationPath puttymgr-cli.zip
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -68,3 +80,4 @@ jobs:
           generate_release_notes: true
           files: |
             PuTTYProfileManager\setup\bin\Release\PuTTYProfileManagerSetup.msi
+            puttymgr-cli.zip

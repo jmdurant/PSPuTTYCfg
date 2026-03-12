@@ -3,9 +3,9 @@ using System.Text;
 using System.Text.Json;
 using ICSharpCode.SharpZipLib.Zip;
 using Microsoft.Win32;
-using PuTTYProfileManager.Models;
+using PuTTYProfileManager.Core.Models;
 
-namespace PuTTYProfileManager.Services;
+namespace PuTTYProfileManager.Core.Services;
 
 public class SessionArchiveService : ISessionArchiveService
 {
@@ -25,7 +25,6 @@ public class SessionArchiveService : ISessionArchiveService
             ? LinkedFileService.GetLinkedFiles(sessionList).Where(f => f.Exists).ToList()
             : [];
 
-        // Build mapping: original path -> zip entry name
         var fileMapping = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var lf in linkedFiles)
         {
@@ -40,7 +39,6 @@ public class SessionArchiveService : ISessionArchiveService
 
         zip.SetLevel(9);
 
-        // Write session JSON files
         foreach (var session in sessionList)
         {
             var dto = SessionDto.FromSession(session);
@@ -56,7 +54,6 @@ public class SessionArchiveService : ISessionArchiveService
             zip.CloseEntry();
         }
 
-        // Write linked files
         foreach (var lf in linkedFiles)
         {
             var fileBytes = File.ReadAllBytes(lf.OriginalPath);
@@ -71,7 +68,6 @@ public class SessionArchiveService : ISessionArchiveService
             zip.CloseEntry();
         }
 
-        // Write file mapping manifest
         if (fileMapping.Count > 0)
         {
             var manifest = JsonSerializer.Serialize(fileMapping, JsonOptions);
@@ -170,7 +166,7 @@ public class SessionArchiveService : ISessionArchiveService
         }
     }
 
-    private class SessionDto
+    internal class SessionDto
     {
         public string Name { get; set; } = string.Empty;
         public string DisplayName { get; set; } = string.Empty;
@@ -229,7 +225,7 @@ public class SessionArchiveService : ISessionArchiveService
         }
     }
 
-    private class SettingDto
+    internal class SettingDto
     {
         public string Name { get; set; } = string.Empty;
         public string Kind { get; set; } = string.Empty;

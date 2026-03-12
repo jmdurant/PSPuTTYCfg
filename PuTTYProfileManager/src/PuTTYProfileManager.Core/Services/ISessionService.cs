@@ -1,8 +1,8 @@
-using PuTTYProfileManager.Models;
+using PuTTYProfileManager.Core.Models;
 
-namespace PuTTYProfileManager.Services;
+namespace PuTTYProfileManager.Core.Services;
 
-public interface ISessionRegistryService
+public interface ISessionService
 {
     List<PuttySession> GetAllSessions();
     bool SessionExists(string encodedName);
