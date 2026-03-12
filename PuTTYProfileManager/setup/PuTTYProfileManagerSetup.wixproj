@@ -16,6 +16,9 @@
     <BindPath Include="$(MSBuildProjectDirectory)\..\publish">
       <BindName>PublishBin</BindName>
     </BindPath>
+    <BindPath Include="$(MSBuildProjectDirectory)\..\assets">
+      <BindName>Assets</BindName>
+    </BindPath>
   </ItemGroup>
 
   <ItemGroup>

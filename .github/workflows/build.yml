@@ -35,6 +35,9 @@ jobs:
       - name: Publish CLI (linux-x64)
         run: dotnet publish PuTTYProfileManager\src\PuTTYProfileManager.Cli\PuTTYProfileManager.Cli.csproj -c Release -r linux-x64 --self-contained true -o PuTTYProfileManager\publish-cli-linux-x64
 
+      - name: Publish Avalonia GUI (win-x64)
+        run: dotnet publish PuTTYProfileManager\src\PuTTYProfileManager.Avalonia\PuTTYProfileManager.Avalonia.csproj -c Release -r win-x64 --self-contained true -o PuTTYProfileManager\publish-gui-win-x64
+
       - name: Build WiX installer
         run: dotnet build PuTTYProfileManager\setup\PuTTYProfileManagerSetup.wixproj -c Release
 
@@ -55,6 +58,12 @@ jobs:
         with:
           name: puttymgr-cli-linux-x64
           path: PuTTYProfileManager\publish-cli-linux-x64\
+
+      - name: Upload GUI artifact (win-x64)
+        uses: actions/upload-artifact@v4
+        with:
+          name: puttymgr-gui-win-x64
+          path: PuTTYProfileManager\publish-gui-win-x64\
 
   build-linux:
     runs-on: ubuntu-latest
@@ -145,6 +154,7 @@ jobs:
           zip -r ../puttymgr-cli-linux-x64.zip puttymgr-cli-linux-x64/
           zip -r ../puttymgr-cli-osx-x64.zip puttymgr-cli-osx-x64/
           zip -r ../puttymgr-cli-osx-arm64.zip puttymgr-cli-osx-arm64/
+          zip -r ../puttymgr-gui-win-x64.zip puttymgr-gui-win-x64/
           zip -r ../puttymgr-gui-linux-x64.zip puttymgr-gui-linux-x64/
           zip -r ../puttymgr-gui-osx-x64.zip puttymgr-gui-osx-x64/
           zip -r ../puttymgr-gui-osx-arm64.zip puttymgr-gui-osx-arm64/
@@ -164,6 +174,7 @@ jobs:
             puttymgr-cli-linux-x64.zip
             puttymgr-cli-osx-x64.zip
             puttymgr-cli-osx-arm64.zip
+            puttymgr-gui-win-x64.zip
             puttymgr-gui-linux-x64.zip
             puttymgr-gui-osx-x64.zip
             puttymgr-gui-osx-arm64.zip

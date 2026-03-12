@@ -46,12 +46,16 @@
       <ComponentGroupRef Id="AppDirectories" />
     </Feature>
 
+    <!-- Application icon -->
+    <Icon Id="AppIcon.ico" SourceFile="!(bindpath.Assets)\app.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
+
     <!-- Application files -->
     <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
       <Component Id="MainExe" Guid="*">
         <File Id="PuTTYProfileManager.exe" Source="!(bindpath.PublishBin)\PuTTYProfileManager.exe" KeyPath="yes">
-          <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuProductFolder" Name="PuTTY Profile Manager" Advertise="yes" />
-          <Shortcut Id="DesktopShortcut" Directory="DesktopFolder" Name="PuTTY Profile Manager" Advertise="yes" />
+          <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuProductFolder" Name="PuTTY Profile Manager" Advertise="yes" Icon="AppIcon.ico" />
+          <Shortcut Id="DesktopShortcut" Directory="DesktopFolder" Name="PuTTY Profile Manager" Advertise="yes" Icon="AppIcon.ico" />
         </File>
       </Component>
 
