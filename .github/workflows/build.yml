@@ -18,11 +18,13 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
-      - name: Restore solution
-        run: dotnet restore PuTTYProfileManager\PuTTYProfileManager.slnx
-
-      - name: Build solution (Release)
-        run: dotnet build PuTTYProfileManager\PuTTYProfileManager.slnx -c Release --no-restore
+      - name: Restore and build (excluding WiX)
+        run: |
+          dotnet restore PuTTYProfileManager\PuTTYProfileManager.slnx
+          dotnet build PuTTYProfileManager\src\PuTTYProfileManager.Core\PuTTYProfileManager.Core.csproj -c Release --no-restore
+          dotnet build PuTTYProfileManager\src\PuTTYProfileManager\PuTTYProfileManager.csproj -c Release --no-restore
+          dotnet build PuTTYProfileManager\src\PuTTYProfileManager.Cli\PuTTYProfileManager.Cli.csproj -c Release --no-restore
+          dotnet build PuTTYProfileManager\src\PuTTYProfileManager.Avalonia\PuTTYProfileManager.Avalonia.csproj -c Release --no-restore
 
       - name: Publish GUI (framework-dependent)
         run: dotnet publish PuTTYProfileManager\src\PuTTYProfileManager\PuTTYProfileManager.csproj -c Release -r win-x64 --self-contained false -o PuTTYProfileManager\publish
