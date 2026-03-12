@@ -7,6 +7,8 @@
     <Nullable>enable</Nullable>
     <NoWarn>CA1416;NU1510</NoWarn>
     <ApplicationIcon>..\..\assets\app.ico</ApplicationIcon>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,6 +21,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\PuTTYProfileManager.Core\PuTTYProfileManager.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\app.png" />
   </ItemGroup>
 
 </Project>

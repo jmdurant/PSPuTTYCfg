@@ -9,6 +9,8 @@
     <Version>0.0.2</Version>
     <Product>PuTTY Profile Manager CLI</Product>
     <Description>Cross-platform CLI for backing up and restoring PuTTY session profiles</Description>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
   </PropertyGroup>
 
   <ItemGroup>
