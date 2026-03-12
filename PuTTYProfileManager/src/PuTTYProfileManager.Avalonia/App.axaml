@@ -1,0 +1,38 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="PuTTYProfileManager.Avalonia.App"
+             RequestedThemeVariant="Dark">
+
+    <Application.Styles>
+        <FluentTheme />
+        <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml"/>
+    </Application.Styles>
+
+    <Application.Resources>
+        <!-- Steam-inspired dark theme colors -->
+        <Color x:Key="PrimaryColor">#1B2838</Color>
+        <Color x:Key="PrimaryLightColor">#2A475E</Color>
+        <Color x:Key="AccentColor">#66C0F4</Color>
+        <Color x:Key="AccentHoverColor">#88D4F8</Color>
+        <Color x:Key="SurfaceColor">#171D25</Color>
+        <Color x:Key="CardColor">#1E2A36</Color>
+        <Color x:Key="TextColor">#E5E5E5</Color>
+        <Color x:Key="TextSecondaryColor">#8F98A0</Color>
+        <Color x:Key="DangerColor">#E06C75</Color>
+        <Color x:Key="SuccessColor">#98C379</Color>
+        <Color x:Key="BorderColor">#2A3A4A</Color>
+
+        <SolidColorBrush x:Key="PrimaryBrush" Color="{StaticResource PrimaryColor}" />
+        <SolidColorBrush x:Key="PrimaryLightBrush" Color="{StaticResource PrimaryLightColor}" />
+        <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
+        <SolidColorBrush x:Key="AccentHoverBrush" Color="{StaticResource AccentHoverColor}" />
+        <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}" />
+        <SolidColorBrush x:Key="CardBrush" Color="{StaticResource CardColor}" />
+        <SolidColorBrush x:Key="TextBrush" Color="{StaticResource TextColor}" />
+        <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondaryColor}" />
+        <SolidColorBrush x:Key="DangerBrush" Color="{StaticResource DangerColor}" />
+        <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource SuccessColor}" />
+        <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}" />
+    </Application.Resources>
+
+</Application>

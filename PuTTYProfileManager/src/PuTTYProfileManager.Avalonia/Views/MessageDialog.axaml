@@ -1,0 +1,35 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="PuTTYProfileManager.Avalonia.Views.MessageDialog"
+        Width="450" Height="200"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource SurfaceBrush}">
+
+    <Grid RowDefinitions="*,Auto" Margin="20">
+
+        <ScrollViewer Grid.Row="0" Margin="0,0,0,16">
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <TextBlock x:Name="IconText" FontSize="28" VerticalAlignment="Top" />
+                <TextBlock x:Name="MessageText"
+                           Foreground="{StaticResource TextBrush}"
+                           TextWrapping="Wrap"
+                           VerticalAlignment="Top"
+                           MaxWidth="360" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal"
+                    HorizontalAlignment="Right" Spacing="8">
+            <Button x:Name="YesButton" Content="Yes" Click="OnYes" Width="80"
+                    Background="{StaticResource AccentBrush}" Foreground="#1B2838"
+                    IsVisible="False" />
+            <Button x:Name="NoButton" Content="No" Click="OnNo" Width="80"
+                    IsVisible="False" />
+            <Button x:Name="OkButton" Content="OK" Click="OnOk" Width="80"
+                    Background="{StaticResource AccentBrush}" Foreground="#1B2838"
+                    IsVisible="False" />
+        </StackPanel>
+
+    </Grid>
+</Window>

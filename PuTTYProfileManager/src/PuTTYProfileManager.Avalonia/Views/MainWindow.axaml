@@ -1,0 +1,46 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:PuTTYProfileManager.Avalonia.ViewModels"
+        xmlns:views="using:PuTTYProfileManager.Avalonia.Views"
+        x:Class="PuTTYProfileManager.Avalonia.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="PuTTY Profile Manager"
+        Width="900" Height="650"
+        MinWidth="700" MinHeight="500"
+        Background="{StaticResource SurfaceBrush}"
+        WindowStartupLocation="CenterScreen">
+
+    <Grid RowDefinitions="Auto,*,Auto">
+
+        <!-- Title Bar -->
+        <Border Grid.Row="0" Background="{StaticResource PrimaryBrush}" Padding="16,12">
+            <StackPanel>
+                <TextBlock Text="PuTTY Profile Manager"
+                           FontSize="20" FontWeight="Bold"
+                           Foreground="{StaticResource AccentBrush}" />
+                <TextBlock Text="Backup &amp; Restore PuTTY Sessions"
+                           FontSize="12"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           Margin="0,2,0,0" />
+            </StackPanel>
+        </Border>
+
+        <!-- Tab Control -->
+        <TabControl Grid.Row="1" Margin="0">
+            <TabItem Header="BACKUP">
+                <views:BackupView DataContext="{Binding Backup}" />
+            </TabItem>
+            <TabItem Header="RESTORE">
+                <views:RestoreView DataContext="{Binding Restore}" />
+            </TabItem>
+        </TabControl>
+
+        <!-- Status Bar -->
+        <Border Grid.Row="2" Background="{StaticResource PrimaryBrush}" Padding="12,6">
+            <TextBlock Text="{Binding StatusMessage}"
+                       Foreground="{StaticResource TextSecondaryBrush}"
+                       FontSize="12" />
+        </Border>
+
+    </Grid>
+</Window>

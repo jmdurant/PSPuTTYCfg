@@ -1,0 +1,127 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:PuTTYProfileManager.Avalonia.ViewModels"
+             xmlns:models="using:PuTTYProfileManager.Avalonia.Models"
+             x:Class="PuTTYProfileManager.Avalonia.Views.RestoreView"
+             x:DataType="vm:RestoreViewModel">
+
+    <Grid RowDefinitions="Auto,Auto,*,Auto,Auto,Auto" Margin="12">
+
+        <!-- Archive Selection -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+            <TextBox Grid.Column="0"
+                     Text="{Binding ArchivePath}"
+                     Watermark="Select a backup archive..."
+                     IsReadOnly="True" />
+            <Button Grid.Column="1" Content="Browse..."
+                    Command="{Binding BrowseArchiveCommand}"
+                    Margin="8,0,0,0" />
+        </Grid>
+
+        <!-- Toolbar -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8"
+                    IsVisible="{Binding ArchivePath, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <Button Content="Select All" Command="{Binding SelectAllCommand}" />
+            <Button Content="Deselect All" Command="{Binding DeselectAllCommand}" />
+            <TextBlock VerticalAlignment="Center" Margin="12,0,0,0"
+                       Foreground="{StaticResource TextSecondaryBrush}">
+                <Run Text="{Binding SelectedCount}" />
+                <Run Text=" of " />
+                <Run Text="{Binding TotalCount}" />
+                <Run Text=" selected" />
+            </TextBlock>
+        </StackPanel>
+
+        <!-- Archived Sessions DataGrid -->
+        <DataGrid Grid.Row="2"
+                  ItemsSource="{Binding ArchivedSessions}"
+                  SelectedItem="{Binding SelectedSession}"
+                  AutoGenerateColumns="False"
+                  CanUserReorderColumns="False"
+                  CanUserResizeColumns="True"
+                  CanUserSortColumns="True"
+                  IsReadOnly="False"
+                  SelectionMode="Single"
+                  GridLinesVisibility="Horizontal"
+                  BorderThickness="1"
+                  BorderBrush="{StaticResource BorderBrush}">
+            <DataGrid.Columns>
+                <DataGridTemplateColumn Header="" Width="50">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate x:DataType="models:SelectableSession">
+                            <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                      HorizontalAlignment="Center" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTextColumn Header="Session Name"
+                                    Binding="{Binding Session.DisplayName}"
+                                    Width="*"
+                                    IsReadOnly="True" />
+                <DataGridTextColumn Header="Connection"
+                                    Binding="{Binding Session.Summary}"
+                                    Width="200"
+                                    IsReadOnly="True" />
+                <DataGridTextColumn Header="Settings"
+                                    Binding="{Binding Session.Values.Count}"
+                                    Width="80"
+                                    IsReadOnly="True" />
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- Linked Files Restore Folder -->
+        <Border Grid.Row="3" Background="{StaticResource CardBrush}"
+                CornerRadius="6" Padding="12" Margin="0,8,0,0"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                IsVisible="{Binding HasLinkedFiles}">
+            <StackPanel Spacing="8">
+                <TextBlock Foreground="{StaticResource TextBrush}" FontSize="13" FontWeight="SemiBold">
+                    <Run Text="Restore " />
+                    <Run Text="{Binding LinkedFileCount}" />
+                    <Run Text=" linked file(s) to:" />
+                </TextBlock>
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBox Grid.Column="0"
+                             Text="{Binding FileRestoreFolder}" />
+                    <Button Grid.Column="1" Content="Browse..."
+                            Command="{Binding BrowseRestoreFolderCommand}"
+                            Margin="8,0,0,0" />
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- Session Details -->
+        <Border Grid.Row="4" Background="{StaticResource CardBrush}"
+                CornerRadius="6" Padding="12" Margin="0,8,0,0"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                IsVisible="{Binding SelectedSession, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <StackPanel Spacing="4">
+                <TextBlock Text="Session Details" FontWeight="Bold"
+                           Foreground="{StaticResource AccentBrush}" FontSize="13" />
+                <TextBlock Foreground="{StaticResource TextBrush}" FontSize="12">
+                    <Run Text="Name: " FontWeight="SemiBold" />
+                    <Run Text="{Binding SelectedSession.Session.DisplayName}" />
+                </TextBlock>
+                <TextBlock Foreground="{StaticResource TextBrush}" FontSize="12">
+                    <Run Text="Connection: " FontWeight="SemiBold" />
+                    <Run Text="{Binding SelectedSession.Session.Summary}" />
+                </TextBlock>
+                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" FontSize="12">
+                    <Run Text="{Binding SelectedSession.Session.Values.Count}" />
+                    <Run Text=" settings" />
+                </TextBlock>
+            </StackPanel>
+        </Border>
+
+        <!-- Restore Button -->
+        <Button Grid.Row="5" Content="Restore Selected Sessions"
+                Command="{Binding RestoreSelectedCommand}"
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Center"
+                Margin="0,12,0,0" Padding="12,10"
+                FontWeight="Bold"
+                Background="{StaticResource DangerBrush}"
+                Foreground="White" />
+
+    </Grid>
+</UserControl>

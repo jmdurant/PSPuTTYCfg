@@ -6,5 +6,6 @@
     <Project Path="src/PuTTYProfileManager.Cli/PuTTYProfileManager.Cli.csproj" />
     <Project Path="src/PuTTYProfileManager.Core/PuTTYProfileManager.Core.csproj" />
     <Project Path="src/PuTTYProfileManager/PuTTYProfileManager.csproj" />
+    <Project Path="src/PuTTYProfileManager.Avalonia/PuTTYProfileManager.Avalonia.csproj" />
   </Folder>
 </Solution>

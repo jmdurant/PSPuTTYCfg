@@ -7,7 +7,7 @@ on:
   pull_request:
 
 jobs:
-  build:
+  build-windows:
     runs-on: windows-latest
 
     steps:
@@ -27,8 +27,11 @@ jobs:
       - name: Publish GUI (framework-dependent)
         run: dotnet publish PuTTYProfileManager\src\PuTTYProfileManager\PuTTYProfileManager.csproj -c Release -r win-x64 --self-contained false -o PuTTYProfileManager\publish
 
-      - name: Publish CLI (cross-platform)
-        run: dotnet publish PuTTYProfileManager\src\PuTTYProfileManager.Cli\PuTTYProfileManager.Cli.csproj -c Release -o PuTTYProfileManager\publish-cli
+      - name: Publish CLI (win-x64)
+        run: dotnet publish PuTTYProfileManager\src\PuTTYProfileManager.Cli\PuTTYProfileManager.Cli.csproj -c Release -r win-x64 --self-contained true -o PuTTYProfileManager\publish-cli-win-x64
+
+      - name: Publish CLI (linux-x64)
+        run: dotnet publish PuTTYProfileManager\src\PuTTYProfileManager.Cli\PuTTYProfileManager.Cli.csproj -c Release -r linux-x64 --self-contained true -o PuTTYProfileManager\publish-cli-linux-x64
 
       - name: Build WiX installer
         run: dotnet build PuTTYProfileManager\setup\PuTTYProfileManagerSetup.wixproj -c Release
@@ -39,19 +42,20 @@ jobs:
           name: PuTTYProfileManagerSetup
           path: PuTTYProfileManager\setup\bin\Release\*.msi
 
-      - name: Upload CLI artifact
+      - name: Upload CLI artifact (win-x64)
         uses: actions/upload-artifact@v4
         with:
-          name: puttymgr-cli
-          path: PuTTYProfileManager\publish-cli\
+          name: puttymgr-cli-win-x64
+          path: PuTTYProfileManager\publish-cli-win-x64\
 
-  release:
-    needs: build
-    runs-on: windows-latest
-    if: startsWith(github.ref, 'refs/tags/v')
+      - name: Upload CLI artifact (linux-x64)
+        uses: actions/upload-artifact@v4
+        with:
+          name: puttymgr-cli-linux-x64
+          path: PuTTYProfileManager\publish-cli-linux-x64\
 
-    permissions:
-      contents: write
+  build-linux:
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -61,17 +65,91 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
-      - name: Publish GUI (framework-dependent)
-        run: dotnet publish PuTTYProfileManager\src\PuTTYProfileManager\PuTTYProfileManager.csproj -c Release -r win-x64 --self-contained false -o PuTTYProfileManager\publish
+      - name: Publish Avalonia GUI (linux-x64)
+        run: dotnet publish PuTTYProfileManager/src/PuTTYProfileManager.Avalonia/PuTTYProfileManager.Avalonia.csproj -c Release -r linux-x64 --self-contained true -o publish-gui-linux-x64
 
-      - name: Publish CLI (cross-platform)
-        run: dotnet publish PuTTYProfileManager\src\PuTTYProfileManager.Cli\PuTTYProfileManager.Cli.csproj -c Release -o PuTTYProfileManager\publish-cli
+      - name: Upload GUI artifact (linux-x64)
+        uses: actions/upload-artifact@v4
+        with:
+          name: puttymgr-gui-linux-x64
+          path: publish-gui-linux-x64/
 
-      - name: Build WiX installer
-        run: dotnet build PuTTYProfileManager\setup\PuTTYProfileManagerSetup.wixproj -c Release
+  build-macos:
+    runs-on: macos-latest
 
-      - name: Zip CLI for release
-        run: Compress-Archive -Path PuTTYProfileManager\publish-cli\* -DestinationPath puttymgr-cli.zip
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Publish CLI (osx-arm64)
+        run: dotnet publish PuTTYProfileManager/src/PuTTYProfileManager.Cli/PuTTYProfileManager.Cli.csproj -c Release -r osx-arm64 --self-contained true -o publish-cli-osx-arm64
+
+      - name: Publish CLI (osx-x64)
+        run: dotnet publish PuTTYProfileManager/src/PuTTYProfileManager.Cli/PuTTYProfileManager.Cli.csproj -c Release -r osx-x64 --self-contained true -o publish-cli-osx-x64
+
+      - name: Publish Avalonia GUI (osx-arm64)
+        run: dotnet publish PuTTYProfileManager/src/PuTTYProfileManager.Avalonia/PuTTYProfileManager.Avalonia.csproj -c Release -r osx-arm64 --self-contained true -o publish-gui-osx-arm64
+
+      - name: Publish Avalonia GUI (osx-x64)
+        run: dotnet publish PuTTYProfileManager/src/PuTTYProfileManager.Avalonia/PuTTYProfileManager.Avalonia.csproj -c Release -r osx-x64 --self-contained true -o publish-gui-osx-x64
+
+      - name: Upload CLI artifact (osx-arm64)
+        uses: actions/upload-artifact@v4
+        with:
+          name: puttymgr-cli-osx-arm64
+          path: publish-cli-osx-arm64/
+
+      - name: Upload CLI artifact (osx-x64)
+        uses: actions/upload-artifact@v4
+        with:
+          name: puttymgr-cli-osx-x64
+          path: publish-cli-osx-x64/
+
+      - name: Upload GUI artifact (osx-arm64)
+        uses: actions/upload-artifact@v4
+        with:
+          name: puttymgr-gui-osx-arm64
+          path: publish-gui-osx-arm64/
+
+      - name: Upload GUI artifact (osx-x64)
+        uses: actions/upload-artifact@v4
+        with:
+          name: puttymgr-gui-osx-x64
+          path: publish-gui-osx-x64/
+
+  release:
+    needs: [build-windows, build-linux, build-macos]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Zip release assets
+        run: |
+          cd artifacts
+          zip -r ../PuTTYProfileManagerSetup.zip PuTTYProfileManagerSetup/
+          zip -r ../puttymgr-cli-win-x64.zip puttymgr-cli-win-x64/
+          zip -r ../puttymgr-cli-linux-x64.zip puttymgr-cli-linux-x64/
+          zip -r ../puttymgr-cli-osx-x64.zip puttymgr-cli-osx-x64/
+          zip -r ../puttymgr-cli-osx-arm64.zip puttymgr-cli-osx-arm64/
+          zip -r ../puttymgr-gui-linux-x64.zip puttymgr-gui-linux-x64/
+          zip -r ../puttymgr-gui-osx-x64.zip puttymgr-gui-osx-x64/
+          zip -r ../puttymgr-gui-osx-arm64.zip puttymgr-gui-osx-arm64/
+
+      - name: Get MSI path
+        id: msi
+        run: echo "path=$(find artifacts/PuTTYProfileManagerSetup -name '*.msi' | head -1)" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -79,5 +157,11 @@ jobs:
           name: PuTTY Profile Manager ${{ github.ref_name }}
           generate_release_notes: true
           files: |
-            PuTTYProfileManager\setup\bin\Release\PuTTYProfileManagerSetup.msi
-            puttymgr-cli.zip
+            ${{ steps.msi.outputs.path }}
+            puttymgr-cli-win-x64.zip
+            puttymgr-cli-linux-x64.zip
+            puttymgr-cli-osx-x64.zip
+            puttymgr-cli-osx-arm64.zip
+            puttymgr-gui-linux-x64.zip
+            puttymgr-gui-osx-x64.zip
+            puttymgr-gui-osx-arm64.zip
