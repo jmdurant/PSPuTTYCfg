@@ -5,6 +5,7 @@
     <!-- Converters -->
     <converters:NullToVisibilityConverter x:Key="NullToVisibilityConverter" />
     <converters:BooleanInverterConverter x:Key="BooleanInverterConverter" />
+    <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
 
     <!-- Color Palette -->
     <Color x:Key="PrimaryColor">#1B2838</Color>

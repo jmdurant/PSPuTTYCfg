@@ -16,6 +16,7 @@ public partial class BackupViewModel : ObservableObject
     private readonly Action<string> _setStatus;
 
     public ObservableCollection<SelectableSession> Sessions { get; } = [];
+    public ObservableCollection<LinkedFile> LinkedFiles { get; } = [];
 
     [ObservableProperty]
     private SelectableSession? _selectedSession;
@@ -23,8 +24,12 @@ public partial class BackupViewModel : ObservableObject
     [ObservableProperty]
     private bool _isLoading;
 
+    [ObservableProperty]
+    private bool _includeLinkedFiles = true;
+
     public int SelectedCount => Sessions.Count(s => s.IsSelected);
     public int TotalCount => Sessions.Count;
+    public int LinkedFileCount => LinkedFiles.Count(f => f.Exists);
 
     public BackupViewModel(ISessionRegistryService registryService, ISessionArchiveService archiveService, Action<string> setStatus)
     {
@@ -53,13 +58,17 @@ public partial class BackupViewModel : ObservableObject
                 selectable.PropertyChanged += (_, e) =>
                 {
                     if (e.PropertyName == nameof(SelectableSession.IsSelected))
+                    {
                         OnPropertyChanged(nameof(SelectedCount));
+                        RefreshLinkedFiles();
+                    }
                 };
                 Sessions.Add(selectable);
             }
 
             OnPropertyChanged(nameof(TotalCount));
             OnPropertyChanged(nameof(SelectedCount));
+            RefreshLinkedFiles();
             _setStatus($"Loaded {sessions.Count} session(s) from registry");
         }
         catch (Exception ex)
@@ -70,6 +79,18 @@ public partial class BackupViewModel : ObservableObject
         {
             IsLoading = false;
         }
+    }
+
+    private void RefreshLinkedFiles()
+    {
+        var selectedSessions = Sessions.Where(s => s.IsSelected).Select(s => s.Session);
+        var files = LinkedFileService.GetLinkedFiles(selectedSessions);
+
+        LinkedFiles.Clear();
+        foreach (var f in files)
+            LinkedFiles.Add(f);
+
+        OnPropertyChanged(nameof(LinkedFileCount));
     }
 
     [RelayCommand]
@@ -92,6 +113,21 @@ public partial class BackupViewModel : ObservableObject
         {
             _setStatus("No sessions selected for backup");
             return;
+        }
+
+        // Warn about linked files
+        if (IncludeLinkedFiles && LinkedFiles.Count > 0)
+        {
+            var missing = LinkedFiles.Where(f => !f.Exists).ToList();
+            if (missing.Count > 0)
+            {
+                var missingList = string.Join("\n", missing.Select(f => $"  - {f.FileName} ({f.SettingLabel})"));
+                MessageBox.Show(
+                    $"The following linked files were not found and will be skipped:\n\n{missingList}",
+                    "Missing Files",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
         }
 
         var dialog = new SaveFileDialog
@@ -119,12 +155,16 @@ public partial class BackupViewModel : ObservableObject
 
         try
         {
-            _archiveService.ExportToZip(dialog.FileName, selected, password);
+            _archiveService.ExportToZip(dialog.FileName, selected, IncludeLinkedFiles, password);
+
+            var fileCount = IncludeLinkedFiles ? LinkedFiles.Count(f => f.Exists) : 0;
             var protectedText = password is not null ? " (password protected)" : "";
+            var filesText = fileCount > 0 ? $"\n{fileCount} linked file(s) included." : "";
+
             _setStatus($"Backed up {selected.Count} session(s) to {dialog.FileName}{protectedText}");
 
             MessageBox.Show(
-                $"Successfully backed up {selected.Count} session(s).{protectedText}",
+                $"Successfully backed up {selected.Count} session(s).{filesText}{protectedText}",
                 "Backup Complete",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);

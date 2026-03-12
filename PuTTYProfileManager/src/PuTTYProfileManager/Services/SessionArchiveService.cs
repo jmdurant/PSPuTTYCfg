@@ -15,73 +15,138 @@ public class SessionArchiveService : ISessionArchiveService
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    public void ExportToZip(string zipPath, IEnumerable<PuttySession> sessions, string? password = null)
+    public void ExportToZip(string zipPath, IEnumerable<PuttySession> sessions, bool includeLinkedFiles, string? password = null)
     {
         if (File.Exists(zipPath))
             File.Delete(zipPath);
+
+        var sessionList = sessions.ToList();
+        var linkedFiles = includeLinkedFiles
+            ? LinkedFileService.GetLinkedFiles(sessionList).Where(f => f.Exists).ToList()
+            : [];
+
+        // Build mapping: original path -> zip entry name
+        var fileMapping = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var lf in linkedFiles)
+        {
+            fileMapping[lf.OriginalPath] = LinkedFileService.GetZipEntryName(lf.OriginalPath);
+        }
 
         using var fs = File.Create(zipPath);
         using var zip = new ZipOutputStream(fs);
 
         if (!string.IsNullOrEmpty(password))
-        {
             zip.Password = password;
-        }
 
         zip.SetLevel(9);
 
-        foreach (var session in sessions)
+        // Write session JSON files
+        foreach (var session in sessionList)
         {
             var dto = SessionDto.FromSession(session);
             var json = JsonSerializer.Serialize(dto, JsonOptions);
             var bytes = Encoding.UTF8.GetBytes(json);
 
-            var entry = new ZipEntry($"{session.EncodedName}.json")
-            {
-                Size = bytes.Length
-            };
-
+            var entry = new ZipEntry($"sessions/{session.EncodedName}.json") { Size = bytes.Length };
             if (!string.IsNullOrEmpty(password))
-            {
                 entry.AESKeySize = 256;
-            }
 
             zip.PutNextEntry(entry);
             zip.Write(bytes, 0, bytes.Length);
             zip.CloseEntry();
         }
+
+        // Write linked files
+        foreach (var lf in linkedFiles)
+        {
+            var fileBytes = File.ReadAllBytes(lf.OriginalPath);
+            var entryName = fileMapping[lf.OriginalPath];
+
+            var entry = new ZipEntry(entryName) { Size = fileBytes.Length };
+            if (!string.IsNullOrEmpty(password))
+                entry.AESKeySize = 256;
+
+            zip.PutNextEntry(entry);
+            zip.Write(fileBytes, 0, fileBytes.Length);
+            zip.CloseEntry();
+        }
+
+        // Write file mapping manifest
+        if (fileMapping.Count > 0)
+        {
+            var manifest = JsonSerializer.Serialize(fileMapping, JsonOptions);
+            var manifestBytes = Encoding.UTF8.GetBytes(manifest);
+
+            var entry = new ZipEntry("file_mapping.json") { Size = manifestBytes.Length };
+            if (!string.IsNullOrEmpty(password))
+                entry.AESKeySize = 256;
+
+            zip.PutNextEntry(entry);
+            zip.Write(manifestBytes, 0, manifestBytes.Length);
+            zip.CloseEntry();
+        }
     }
 
-    public List<PuttySession> ImportFromZip(string zipPath, string? password = null)
+    public ArchiveContents ImportFromZip(string zipPath, string? password = null)
     {
-        var sessions = new List<PuttySession>();
+        var result = new ArchiveContents();
 
         using var fs = File.OpenRead(zipPath);
         using var zip = new ZipInputStream(fs);
 
         if (!string.IsNullOrEmpty(password))
-        {
             zip.Password = password;
-        }
 
         ZipEntry? entry;
         while ((entry = zip.GetNextEntry()) is not null)
         {
-            if (!entry.Name.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
-                continue;
-
             using var ms = new MemoryStream();
             zip.CopyTo(ms);
             ms.Position = 0;
 
-            var dto = JsonSerializer.Deserialize<SessionDto>(ms, JsonOptions);
-            if (dto is null)
-                continue;
-
-            sessions.Add(dto.ToSession());
+            if (entry.Name == "file_mapping.json")
+            {
+                var mapping = JsonSerializer.Deserialize<Dictionary<string, string>>(ms, JsonOptions);
+                if (mapping is not null)
+                    result.FileMapping = mapping;
+            }
+            else if (entry.Name.StartsWith("files/", StringComparison.OrdinalIgnoreCase))
+            {
+                result.LinkedFileEntries.Add(entry.Name);
+            }
+            else if (entry.Name.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+            {
+                var dto = JsonSerializer.Deserialize<SessionDto>(ms, JsonOptions);
+                if (dto is not null)
+                    result.Sessions.Add(dto.ToSession());
+            }
         }
 
-        return sessions;
+        return result;
+    }
+
+    public void ExtractLinkedFiles(string zipPath, string destinationFolder, string? password = null)
+    {
+        Directory.CreateDirectory(destinationFolder);
+
+        using var fs = File.OpenRead(zipPath);
+        using var zip = new ZipInputStream(fs);
+
+        if (!string.IsNullOrEmpty(password))
+            zip.Password = password;
+
+        ZipEntry? entry;
+        while ((entry = zip.GetNextEntry()) is not null)
+        {
+            if (!entry.Name.StartsWith("files/", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var fileName = Path.GetFileName(entry.Name);
+            var destPath = Path.Combine(destinationFolder, fileName);
+
+            using var fileStream = File.Create(destPath);
+            zip.CopyTo(fileStream);
+        }
     }
 
     public bool IsPasswordProtected(string zipPath)

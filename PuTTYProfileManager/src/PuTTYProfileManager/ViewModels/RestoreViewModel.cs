@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -15,6 +16,7 @@ public partial class RestoreViewModel : ObservableObject
     private readonly ISessionArchiveService _archiveService;
     private readonly Action<string> _setStatus;
     private string? _archivePassword;
+    private ArchiveContents? _archiveContents;
 
     public ObservableCollection<SelectableSession> ArchivedSessions { get; } = [];
 
@@ -26,6 +28,16 @@ public partial class RestoreViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _isLoading;
+
+    [ObservableProperty]
+    private bool _hasLinkedFiles;
+
+    [ObservableProperty]
+    private int _linkedFileCount;
+
+    [ObservableProperty]
+    private string _fileRestoreFolder = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ssh");
 
     public int SelectedCount => ArchivedSessions.Count(s => s.IsSelected);
     public int TotalCount => ArchivedSessions.Count;
@@ -52,7 +64,23 @@ public partial class RestoreViewModel : ObservableObject
 
         ArchivePath = dialog.FileName;
         _archivePassword = null;
+        _archiveContents = null;
         LoadArchive();
+    }
+
+    [RelayCommand]
+    private void BrowseRestoreFolder()
+    {
+        var dialog = new OpenFolderDialog
+        {
+            Title = "Select folder to restore linked files (PPK keys, certificates, etc.)",
+            InitialDirectory = FileRestoreFolder
+        };
+
+        if (dialog.ShowDialog() == true)
+        {
+            FileRestoreFolder = dialog.FolderName;
+        }
     }
 
     private void LoadArchive()
@@ -82,10 +110,10 @@ public partial class RestoreViewModel : ObservableObject
                 _archivePassword = pwDialog.Password;
             }
 
-            var sessions = _archiveService.ImportFromZip(ArchivePath, _archivePassword);
+            _archiveContents = _archiveService.ImportFromZip(ArchivePath, _archivePassword);
             ArchivedSessions.Clear();
 
-            foreach (var session in sessions.OrderBy(s => s.DisplayName))
+            foreach (var session in _archiveContents.Sessions.OrderBy(s => s.DisplayName))
             {
                 var selectable = new SelectableSession(session, true);
                 selectable.PropertyChanged += (_, e) =>
@@ -96,13 +124,19 @@ public partial class RestoreViewModel : ObservableObject
                 ArchivedSessions.Add(selectable);
             }
 
+            HasLinkedFiles = _archiveContents.LinkedFileEntries.Count > 0;
+            LinkedFileCount = _archiveContents.LinkedFileEntries.Count;
+
             OnPropertyChanged(nameof(TotalCount));
             OnPropertyChanged(nameof(SelectedCount));
-            _setStatus($"Loaded {sessions.Count} session(s) from archive");
+
+            var filesMsg = HasLinkedFiles ? $" ({LinkedFileCount} linked file(s))" : "";
+            _setStatus($"Loaded {_archiveContents.Sessions.Count} session(s) from archive{filesMsg}");
         }
         catch (Exception ex)
         {
             _archivePassword = null;
+            _archiveContents = null;
             _setStatus($"Error reading archive: {ex.Message}");
             MessageBox.Show($"Failed to read archive:\n{ex.Message}", "Archive Error",
                 MessageBoxButton.OK, MessageBoxImage.Error);
@@ -159,18 +193,34 @@ public partial class RestoreViewModel : ObservableObject
         }
 
         var restored = 0;
+        var filesExtracted = 0;
+
         try
         {
+            // Extract linked files if present
+            if (HasLinkedFiles && _archiveContents?.FileMapping.Count > 0)
+            {
+                _archiveService.ExtractLinkedFiles(ArchivePath!, FileRestoreFolder, _archivePassword);
+                filesExtracted = _archiveContents.LinkedFileEntries.Count;
+
+                // Update session paths to point to restored file locations
+                foreach (var session in selected)
+                {
+                    LinkedFileService.UpdateSessionPaths(session, FileRestoreFolder, _archiveContents.FileMapping);
+                }
+            }
+
             foreach (var session in selected)
             {
                 _registryService.WriteSession(session);
                 restored++;
             }
 
+            var filesMsg = filesExtracted > 0 ? $"\n{filesExtracted} linked file(s) extracted to {FileRestoreFolder}" : "";
             _setStatus($"Restored {restored} session(s) to registry");
 
             MessageBox.Show(
-                $"Successfully restored {restored} session(s) to the registry.",
+                $"Successfully restored {restored} session(s) to the registry.{filesMsg}",
                 "Restore Complete",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);

@@ -9,6 +9,7 @@
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <!-- Toolbar -->
@@ -59,36 +60,89 @@
             </DataGrid>
         </Border>
 
-        <!-- Session Detail Preview -->
+        <!-- Linked Files Panel -->
         <Border Grid.Row="2" Background="{StaticResource CardBrush}" CornerRadius="6"
-                Padding="12" Margin="0,12,0,0" Height="120"
+                Padding="12" Margin="0,12,0,0">
+            <StackPanel>
+                <Grid>
+                    <CheckBox Content="Include linked files (PPK keys, certificates, etc.)"
+                              IsChecked="{Binding IncludeLinkedFiles}"
+                              FontSize="13" FontWeight="SemiBold"
+                              Foreground="{StaticResource AccentBrush}" />
+                    <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center"
+                               Foreground="{StaticResource TextSecondaryBrush}" FontSize="12">
+                        <Run Text="{Binding LinkedFileCount, Mode=OneWay}" />
+                        <Run Text=" file(s) found" />
+                    </TextBlock>
+                </Grid>
+
+                <!-- File list (shown when there are files) -->
+                <ItemsControl ItemsSource="{Binding LinkedFiles}" Margin="0,8,0,0"
+                              Visibility="{Binding IncludeLinkedFiles, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding SettingLabel}"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           FontSize="12" Width="120" />
+                                <TextBlock Grid.Column="1" Text="{Binding OriginalPath}"
+                                           Foreground="{StaticResource TextBrush}"
+                                           FontSize="12" TextTrimming="CharacterEllipsis"
+                                           Margin="8,0" />
+                                <TextBlock Grid.Column="2" Text="{Binding DisplaySize}"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           FontSize="12" Width="60" TextAlignment="Right" Margin="0,0,8,0" />
+                                <TextBlock Grid.Column="3" FontSize="12" Width="60">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{StaticResource SuccessBrush}" />
+                                            <Setter Property="Text" Value="Found" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Exists}" Value="False">
+                                                    <Setter Property="Foreground" Value="{StaticResource DangerBrush}" />
+                                                    <Setter Property="Text" Value="Missing" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+
+        <!-- Session Detail Preview -->
+        <Border Grid.Row="3" Background="{StaticResource CardBrush}" CornerRadius="6"
+                Padding="12" Margin="0,12,0,0" Height="100"
                 Visibility="{Binding SelectedSession, Converter={StaticResource NullToVisibilityConverter}, FallbackValue=Collapsed}">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0">
-                    <TextBlock Text="Session Details" FontWeight="SemiBold" FontSize="14"
-                               Foreground="{StaticResource AccentBrush}" Margin="0,0,0,8" />
-                    <TextBlock Foreground="{StaticResource TextBrush}" FontSize="13">
-                        <Run Text="Name: " FontWeight="SemiBold" />
-                        <Run Text="{Binding SelectedSession.DisplayName, Mode=OneWay}" />
-                    </TextBlock>
-                    <TextBlock Foreground="{StaticResource TextBrush}" FontSize="13">
-                        <Run Text="Connection: " FontWeight="SemiBold" />
-                        <Run Text="{Binding SelectedSession.Summary, Mode=OneWay}" />
-                    </TextBlock>
-                    <TextBlock Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,4,0,0">
-                        <Run Text="{Binding SelectedSession.SettingsCount, Mode=OneWay}" />
-                        <Run Text=" registry values" />
-                    </TextBlock>
-                </StackPanel>
-            </Grid>
+            <StackPanel>
+                <TextBlock Text="Session Details" FontWeight="SemiBold" FontSize="14"
+                           Foreground="{StaticResource AccentBrush}" Margin="0,0,0,8" />
+                <TextBlock Foreground="{StaticResource TextBrush}" FontSize="13">
+                    <Run Text="Name: " FontWeight="SemiBold" />
+                    <Run Text="{Binding SelectedSession.DisplayName, Mode=OneWay}" />
+                </TextBlock>
+                <TextBlock Foreground="{StaticResource TextBrush}" FontSize="13">
+                    <Run Text="Connection: " FontWeight="SemiBold" />
+                    <Run Text="{Binding SelectedSession.Summary, Mode=OneWay}" />
+                </TextBlock>
+                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,4,0,0">
+                    <Run Text="{Binding SelectedSession.SettingsCount, Mode=OneWay}" />
+                    <Run Text=" registry values" />
+                </TextBlock>
+            </StackPanel>
         </Border>
 
         <!-- Backup Button -->
-        <Border Grid.Row="3" Margin="0,12,0,0">
+        <Border Grid.Row="4" Margin="0,12,0,0">
             <Button Content="Backup Selected Sessions"
                     Style="{StaticResource ModernButton}"
                     Command="{Binding BackupSelectedCommand}"
