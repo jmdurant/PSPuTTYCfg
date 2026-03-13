@@ -54,22 +54,25 @@ public static class SshTools
         [Description("Shell command to execute on the remote system")] string command,
         [Description("SSH username (optional, uses session or current user if omitted)")] string? username = null,
         [Description("SSH password or key passphrase (optional, cached after first use)")] string? password = null,
-        [Description("Command timeout in seconds (default: 30)")] int timeout = 30)
+        [Description("Command timeout in seconds (default: 30)")] int timeout = 30,
+        [Description("Run the command with sudo (default: false)")] bool sudo = false)
     {
         var authError = ConnectWithCache(session, username, password, out var puttySession, out var client, timeout);
         if (authError is not null) return authError;
 
+        var effectiveCommand = sudo ? $"sudo {command}" : command;
+
         using (client)
         try
         {
-            using var cmd = client!.CreateCommand(command);
+            using var cmd = client!.CreateCommand(effectiveCommand);
             cmd.CommandTimeout = TimeSpan.FromSeconds(timeout);
             var result = cmd.Execute();
             var stderr = cmd.Error;
             var exitCode = cmd.ExitStatus;
 
             var sb = new StringBuilder();
-            sb.AppendLine($"[{puttySession!.DisplayName}] $ {command}");
+            sb.AppendLine($"[{puttySession!.DisplayName}] $ {effectiveCommand}");
             sb.AppendLine($"Exit code: {exitCode}");
 
             if (!string.IsNullOrWhiteSpace(result))
@@ -105,7 +108,8 @@ public static class SshTools
         [Description("List of shell commands to execute in order")] string[] commands,
         [Description("SSH username (optional)")] string? username = null,
         [Description("SSH password or key passphrase (optional, cached after first use)")] string? password = null,
-        [Description("Per-command timeout in seconds (default: 30)")] int timeout = 30)
+        [Description("Per-command timeout in seconds (default: 30)")] int timeout = 30,
+        [Description("Run all commands with sudo (default: false)")] bool sudo = false)
     {
         var authError = ConnectWithCache(session, username, password, out var puttySession, out var client, timeout);
         if (authError is not null) return authError;
@@ -119,9 +123,10 @@ public static class SshTools
 
             foreach (var command in commands)
             {
-                sb.AppendLine($"$ {command}");
+                var effectiveCommand = sudo ? $"sudo {command}" : command;
+                sb.AppendLine($"$ {effectiveCommand}");
 
-                using var cmd = client!.CreateCommand(command);
+                using var cmd = client!.CreateCommand(effectiveCommand);
                 cmd.CommandTimeout = TimeSpan.FromSeconds(timeout);
                 var result = cmd.Execute();
                 var stderr = cmd.Error;
@@ -164,16 +169,19 @@ public static class SshTools
         [Description("Absolute path to the file on the remote system")] string path,
         [Description("Content to write to the file")] string content,
         [Description("SSH username (optional)")] string? username = null,
-        [Description("SSH password or key passphrase (optional, cached after first use)")] string? password = null)
+        [Description("SSH password or key passphrase (optional, cached after first use)")] string? password = null,
+        [Description("Write the file with sudo (default: false)")] bool sudo = false)
     {
         var authError = ConnectWithCache(session, username, password, out var puttySession, out var client);
         if (authError is not null) return authError;
+
+        var sudoPrefix = sudo ? "sudo " : "";
 
         using (client)
         try
         {
             using var sftpCommand = client!.CreateCommand(
-                $"cat > {EscapeArg(path)} << 'PUTTYMGR_EOF'\n{content}\nPUTTYMGR_EOF");
+                $"{sudoPrefix}cat > {EscapeArg(path)} << 'PUTTYMGR_EOF'\n{content}\nPUTTYMGR_EOF");
             sftpCommand.CommandTimeout = TimeSpan.FromSeconds(30);
             sftpCommand.Execute();
 
