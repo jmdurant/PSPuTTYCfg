@@ -155,7 +155,16 @@ public static class SshConnectionFactory
                 "Provide a password or ensure an SSH key is configured.");
 
         var connectionInfo = new ConnectionInfo(host, port, user, authMethods.ToArray());
-        return new SshClient(connectionInfo);
+        var client = new SshClient(connectionInfo);
+
+        // Auto-accept host keys so first-time connections don't fail silently.
+        // SSH.NET rejects unknown hosts by default when no handler is attached.
+        client.HostKeyReceived += (sender, e) =>
+        {
+            e.CanTrust = true;
+        };
+
+        return client;
     }
 
     private static string? GetSettingValue(PuttySession session, string name)
