@@ -2,11 +2,54 @@ using System.Runtime.InteropServices;
 using PuTTYProfileManager.Core.Models;
 using PuTTYProfileManager.Core.Services;
 using Renci.SshNet;
+using SshNet.PuttyKeyFile;
 
 namespace PuTTYProfileManager.McpServer;
 
 public static class SshConnectionFactory
 {
+    // In-process credential cache — persists for the lifetime of the MCP server process.
+    // Keyed by session display name (case-insensitive).
+    private static readonly Dictionary<string, string> _credentialCache = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Store a password/passphrase for a session so subsequent calls don't need it again.
+    /// </summary>
+    public static void CacheCredential(string sessionName, string password)
+    {
+        _credentialCache[sessionName] = password;
+    }
+
+    /// <summary>
+    /// Get a cached credential for a session, or null if none is stored.
+    /// </summary>
+    public static string? GetCachedCredential(string sessionName)
+    {
+        return _credentialCache.TryGetValue(sessionName, out var pw) ? pw : null;
+    }
+
+    /// <summary>
+    /// Remove a cached credential for a session.
+    /// </summary>
+    public static void ClearCredential(string sessionName)
+    {
+        _credentialCache.Remove(sessionName);
+    }
+
+    /// <summary>
+    /// Resolve the effective password for a session: explicit parameter wins, then cache.
+    /// </summary>
+    public static string? ResolvePassword(string sessionName, string? explicitPassword)
+    {
+        if (!string.IsNullOrEmpty(explicitPassword))
+        {
+            CacheCredential(sessionName, explicitPassword);
+            return explicitPassword;
+        }
+
+        return GetCachedCredential(sessionName);
+    }
+
     public static List<ISessionService> CreateSessionServices()
     {
         var services = new List<ISessionService>();
@@ -83,15 +126,18 @@ public static class SshConnectionFactory
 
     public static SshClient CreateClient(PuttySession session, string? username = null, string? password = null)
     {
-        var host = session.HostName
+        var host = session.HostName?.Trim()
             ?? throw new InvalidOperationException($"Session '{session.DisplayName}' has no hostname configured.");
+
+        if (string.IsNullOrEmpty(host))
+            throw new InvalidOperationException($"Session '{session.DisplayName}' has no hostname configured.");
 
         var port = session.Port ?? 22;
 
         // Get username from session or parameter
-        var user = username
+        var user = (username
             ?? GetSettingValue(session, "UserName")
-            ?? Environment.UserName;
+            ?? Environment.UserName).Trim();
 
         var authMethods = new List<AuthenticationMethod>();
 
@@ -101,15 +147,10 @@ public static class SshConnectionFactory
         {
             keyPath = Environment.ExpandEnvironmentVariables(keyPath);
 
-            // PuTTY uses .ppk format — SSH.NET can read OpenSSH keys directly.
-            // If it's a .ppk file, check for a converted OpenSSH key alongside it.
             var effectivePath = ResolveKeyPath(keyPath);
             if (effectivePath is not null && File.Exists(effectivePath))
             {
-                var keyFile = string.IsNullOrEmpty(password)
-                    ? new PrivateKeyFile(effectivePath)
-                    : new PrivateKeyFile(effectivePath, password);
-                authMethods.Add(new PrivateKeyAuthenticationMethod(user, keyFile));
+                authMethods.Add(CreateKeyAuth(user, effectivePath, password));
             }
         }
 
@@ -173,29 +214,51 @@ public static class SshConnectionFactory
             .FirstOrDefault(v => v.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
             ?.Value?.ToString();
 
-        return string.IsNullOrWhiteSpace(val) ? null : val;
+        return string.IsNullOrWhiteSpace(val) ? null : val.Trim();
+    }
+
+    /// <summary>
+    /// Create a private key auth method, using PuttyKeyFile for .ppk format and PrivateKeyFile for OpenSSH format.
+    /// </summary>
+    private static PrivateKeyAuthenticationMethod CreateKeyAuth(string user, string path, string? password)
+    {
+        if (path.EndsWith(".ppk", StringComparison.OrdinalIgnoreCase))
+        {
+            var key = string.IsNullOrEmpty(password)
+                ? new PuttyKeyFile(path)
+                : new PuttyKeyFile(path, password);
+            return new PrivateKeyAuthenticationMethod(user, key);
+        }
+
+        var keyFile = string.IsNullOrEmpty(password)
+            ? new PrivateKeyFile(path)
+            : new PrivateKeyFile(path, password);
+        return new PrivateKeyAuthenticationMethod(user, keyFile);
     }
 
     private static string? ResolveKeyPath(string keyPath)
     {
-        // If the key file is OpenSSH format, use it directly
-        if (!keyPath.EndsWith(".ppk", StringComparison.OrdinalIgnoreCase))
-            return File.Exists(keyPath) ? keyPath : null;
+        // Use the key file directly if it exists (works for both .ppk and OpenSSH formats now)
+        if (File.Exists(keyPath))
+            return keyPath;
 
-        // For .ppk files, look for an OpenSSH equivalent alongside it
-        var dir = Path.GetDirectoryName(keyPath) ?? ".";
-        var baseName = Path.GetFileNameWithoutExtension(keyPath);
+        // If it's a .ppk path that doesn't exist, check for OpenSSH equivalents
+        if (keyPath.EndsWith(".ppk", StringComparison.OrdinalIgnoreCase))
+        {
+            var dir = Path.GetDirectoryName(keyPath) ?? ".";
+            var baseName = Path.GetFileNameWithoutExtension(keyPath);
 
-        // Common patterns: key.ppk → key, key.ppk → key.pem, key.ppk → key_openssh
-        string[] candidates =
-        [
-            Path.Combine(dir, baseName),
-            Path.Combine(dir, $"{baseName}.pem"),
-            Path.Combine(dir, $"{baseName}_openssh"),
-            keyPath // try the .ppk itself — SSH.NET may support newer PPK formats
-        ];
+            string[] candidates =
+            [
+                Path.Combine(dir, baseName),
+                Path.Combine(dir, $"{baseName}.pem"),
+                Path.Combine(dir, $"{baseName}_openssh"),
+            ];
 
-        return candidates.FirstOrDefault(File.Exists);
+            return candidates.FirstOrDefault(File.Exists);
+        }
+
+        return null;
     }
 
     private static IEnumerable<string> GetDefaultKeyPaths()
