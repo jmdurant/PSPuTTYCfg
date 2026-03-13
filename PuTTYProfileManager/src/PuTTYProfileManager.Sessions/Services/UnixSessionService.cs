@@ -5,14 +5,15 @@ using PuTTYProfileManager.Core.Models;
 namespace PuTTYProfileManager.Core.Services;
 
 /// <summary>
-/// Reads and writes PuTTY sessions from the Linux file-based format.
+/// Reads and writes PuTTY sessions from the Unix file-based format.
 /// Sessions are stored as text files in ~/.putty/sessions/ with key=value pairs.
+/// Used on both Linux and macOS.
 /// </summary>
-public class LinuxSessionService : ISessionService
+public class UnixSessionService : ISessionService
 {
     private readonly string _sessionsDir;
 
-    public LinuxSessionService(string? sessionsDir = null)
+    public UnixSessionService(string? sessionsDir = null)
     {
         _sessionsDir = sessionsDir
             ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".putty", "sessions");
@@ -35,10 +36,28 @@ public class LinuxSessionService : ISessionService
         return sessions;
     }
 
+    public PuttySession? GetSession(string encodedName)
+    {
+        var filePath = Path.Combine(_sessionsDir, encodedName);
+        if (!File.Exists(filePath))
+            return null;
+
+        return ReadSessionFile(filePath);
+    }
+
     public bool SessionExists(string encodedName)
     {
         var filePath = Path.Combine(_sessionsDir, encodedName);
         return File.Exists(filePath);
+    }
+
+    public DateTime? GetSessionLastModified(string encodedName)
+    {
+        var filePath = Path.Combine(_sessionsDir, encodedName);
+        if (!File.Exists(filePath))
+            return null;
+
+        return File.GetLastWriteTime(filePath);
     }
 
     public void WriteSession(PuttySession session)
@@ -90,7 +109,7 @@ public class LinuxSessionService : ISessionService
 
     private static (RegistryValueKind kind, object value) ParseValue(string raw)
     {
-        // PuTTY Linux format: numeric values are bare integers, strings are bare strings.
+        // PuTTY Unix format: numeric values are bare integers, strings are bare strings.
         // We detect integers by attempting to parse.
         if (int.TryParse(raw, out var intVal))
             return (RegistryValueKind.DWord, intVal);

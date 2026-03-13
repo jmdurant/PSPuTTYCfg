@@ -23,7 +23,7 @@ public partial class App : Application
             if (OperatingSystem.IsWindows())
                 sessionService = new RegistrySessionService();
             else
-                sessionService = new LinuxSessionService();
+                sessionService = new UnixSessionService();
 
             var archiveService = new SessionArchiveService();
             var vm = new MainWindowViewModel(sessionService, archiveService);

@@ -15,4 +15,6 @@ public class ArchiveContents
     public List<PuttySession> Sessions { get; set; } = [];
     public List<string> LinkedFileEntries { get; set; } = [];
     public Dictionary<string, string> FileMapping { get; set; } = [];
+    public List<string> ValidationErrors { get; set; } = [];
+    public bool HasErrors => ValidationErrors.Count > 0;
 }

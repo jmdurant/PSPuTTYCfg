@@ -4,8 +4,13 @@
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/PuTTYProfileManager.Cli/PuTTYProfileManager.Cli.csproj" />
+    <Project Path="src/PuTTYProfileManager.Sessions/PuTTYProfileManager.Sessions.csproj" />
     <Project Path="src/PuTTYProfileManager.Core/PuTTYProfileManager.Core.csproj" />
     <Project Path="src/PuTTYProfileManager/PuTTYProfileManager.csproj" />
     <Project Path="src/PuTTYProfileManager.Avalonia/PuTTYProfileManager.Avalonia.csproj" />
+    <Project Path="src/PuTTYProfileManager.McpServer/PuTTYProfileManager.McpServer.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PuTTYProfileManager.Core.Tests/PuTTYProfileManager.Core.Tests.csproj" />
   </Folder>
 </Solution>

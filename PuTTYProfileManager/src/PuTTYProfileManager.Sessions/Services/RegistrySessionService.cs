@@ -32,6 +32,15 @@ public class RegistrySessionService : ISessionService
         return sessions;
     }
 
+    public PuttySession? GetSession(string encodedName)
+    {
+        using var sessionsKey = Registry.CurrentUser.OpenSubKey(PuttySessionsPath);
+        if (sessionsKey is null)
+            return null;
+
+        return ReadSession(sessionsKey, encodedName);
+    }
+
     public bool SessionExists(string encodedName)
     {
         using var sessionsKey = Registry.CurrentUser.OpenSubKey(PuttySessionsPath);
@@ -40,6 +49,14 @@ public class RegistrySessionService : ISessionService
 
         using var sessionKey = sessionsKey.OpenSubKey(encodedName);
         return sessionKey is not null;
+    }
+
+    public DateTime? GetSessionLastModified(string encodedName)
+    {
+        // Registry keys don't expose LastWriteTime via the .NET API.
+        // We'd need P/Invoke to RegQueryInfoKey for this.
+        // Return null to indicate "unknown" — the UI can handle this gracefully.
+        return null;
     }
 
     public void WriteSession(PuttySession session)

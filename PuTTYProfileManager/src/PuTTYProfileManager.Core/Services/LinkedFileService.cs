@@ -63,6 +63,20 @@ public static class LinkedFileService
 
     public static void UpdateSessionPaths(PuttySession session, string restoreFolder, Dictionary<string, string> fileMapping)
     {
+        // Track which friendly names are used to detect collisions (same logic as ExtractLinkedFiles)
+        var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var resolvedNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        // First pass: resolve all mapped file names
+        foreach (var kvp in fileMapping)
+        {
+            var archiveFileName = Path.GetFileName(kvp.Value);
+            var friendlyName = StripHashPrefix(archiveFileName);
+            var destName = usedNames.Add(friendlyName) ? friendlyName : archiveFileName;
+            resolvedNames[kvp.Key] = destName;
+        }
+
+        // Second pass: update session values
         foreach (var value in session.Values)
         {
             if (!IsFilePathSetting(value.Name))
@@ -74,12 +88,28 @@ public static class LinkedFileService
 
             var expandedPath = Environment.ExpandEnvironmentVariables(originalPath);
 
-            if (fileMapping.TryGetValue(expandedPath, out var zipEntryName))
+            if (resolvedNames.TryGetValue(expandedPath, out var destName))
             {
-                var fileName = Path.GetFileName(zipEntryName);
-                var newPath = Path.Combine(restoreFolder, fileName);
+                var newPath = Path.Combine(restoreFolder, destName);
                 value.Value = newPath;
             }
         }
+    }
+
+    private static string StripHashPrefix(string fileName)
+    {
+        if (fileName.Length > 9 && fileName[8] == '_' && IsHex(fileName.AsSpan(0, 8)))
+            return fileName[9..];
+        return fileName;
+    }
+
+    private static bool IsHex(ReadOnlySpan<char> span)
+    {
+        foreach (var c in span)
+        {
+            if (!char.IsAsciiHexDigit(c))
+                return false;
+        }
+        return true;
     }
 }

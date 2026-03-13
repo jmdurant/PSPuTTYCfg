@@ -85,39 +85,73 @@ public class SessionArchiveService : ISessionArchiveService
 
     public ArchiveContents ImportFromZip(string zipPath, string? password = null)
     {
+        if (!File.Exists(zipPath))
+            throw new FileNotFoundException($"Archive not found: {zipPath}", zipPath);
+
         var result = new ArchiveContents();
+        var errors = new List<string>();
 
         using var fs = File.OpenRead(zipPath);
-        using var zip = new ZipInputStream(fs);
+        using var zip = new ZipFile(fs);
 
         if (!string.IsNullOrEmpty(password))
             zip.Password = password;
 
-        ZipEntry? entry;
-        while ((entry = zip.GetNextEntry()) is not null)
+        foreach (ZipEntry entry in zip)
         {
+            if (!entry.IsFile)
+                continue;
+
+            using var stream = zip.GetInputStream(entry);
             using var ms = new MemoryStream();
-            zip.CopyTo(ms);
+            stream.CopyTo(ms);
             ms.Position = 0;
 
             if (entry.Name == "file_mapping.json")
             {
-                var mapping = JsonSerializer.Deserialize<Dictionary<string, string>>(ms, JsonOptions);
-                if (mapping is not null)
-                    result.FileMapping = mapping;
+                try
+                {
+                    var mapping = JsonSerializer.Deserialize<Dictionary<string, string>>(ms, JsonOptions);
+                    if (mapping is not null)
+                        result.FileMapping = mapping;
+                }
+                catch (JsonException ex)
+                {
+                    errors.Add($"Invalid file_mapping.json: {ex.Message}");
+                }
             }
             else if (entry.Name.StartsWith("files/", StringComparison.OrdinalIgnoreCase))
             {
                 result.LinkedFileEntries.Add(entry.Name);
             }
-            else if (entry.Name.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+            else if (entry.Name.StartsWith("sessions/", StringComparison.OrdinalIgnoreCase) &&
+                     entry.Name.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
             {
-                var dto = JsonSerializer.Deserialize<SessionDto>(ms, JsonOptions);
-                if (dto is not null)
+                try
+                {
+                    var dto = JsonSerializer.Deserialize<SessionDto>(ms, JsonOptions);
+                    if (dto is null)
+                    {
+                        errors.Add($"Empty session data in {entry.Name}");
+                        continue;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(dto.Name))
+                    {
+                        errors.Add($"Session in {entry.Name} has no name");
+                        continue;
+                    }
+
                     result.Sessions.Add(dto.ToSession());
+                }
+                catch (JsonException ex)
+                {
+                    errors.Add($"Invalid session JSON in {entry.Name}: {ex.Message}");
+                }
             }
         }
 
+        result.ValidationErrors = errors;
         return result;
     }
 
@@ -126,23 +160,48 @@ public class SessionArchiveService : ISessionArchiveService
         Directory.CreateDirectory(destinationFolder);
 
         using var fs = File.OpenRead(zipPath);
-        using var zip = new ZipInputStream(fs);
+        using var zip = new ZipFile(fs);
 
         if (!string.IsNullOrEmpty(password))
             zip.Password = password;
 
-        ZipEntry? entry;
-        while ((entry = zip.GetNextEntry()) is not null)
+        var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (ZipEntry entry in zip)
         {
-            if (!entry.Name.StartsWith("files/", StringComparison.OrdinalIgnoreCase))
+            if (!entry.IsFile || !entry.Name.StartsWith("files/", StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            var fileName = Path.GetFileName(entry.Name);
-            var destPath = Path.Combine(destinationFolder, fileName);
+            var archiveFileName = Path.GetFileName(entry.Name);
 
+            // Strip the hash prefix (e.g., "a1b2c3d4_key.ppk" → "key.ppk")
+            // but keep the full name if stripping would cause a collision
+            var friendlyName = StripHashPrefix(archiveFileName);
+            var destName = usedNames.Add(friendlyName) ? friendlyName : archiveFileName;
+            var destPath = Path.Combine(destinationFolder, destName);
+
+            using var stream = zip.GetInputStream(entry);
             using var fileStream = File.Create(destPath);
-            zip.CopyTo(fileStream);
+            stream.CopyTo(fileStream);
         }
+    }
+
+    private static string StripHashPrefix(string fileName)
+    {
+        // Hash prefix format: 8 hex chars + underscore (e.g., "a1b2c3d4_")
+        if (fileName.Length > 9 && fileName[8] == '_' && IsHex(fileName.AsSpan(0, 8)))
+            return fileName[9..];
+        return fileName;
+    }
+
+    private static bool IsHex(ReadOnlySpan<char> span)
+    {
+        foreach (var c in span)
+        {
+            if (!char.IsAsciiHexDigit(c))
+                return false;
+        }
+        return true;
     }
 
     public bool IsPasswordProtected(string zipPath)
