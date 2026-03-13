@@ -91,6 +91,9 @@ public static class SshTools
                     sb.AppendLine();
             }
 
+            if (!sudo && exitCode != 0 && IsPermissionError(stderr))
+                sb.AppendLine("Tip: this may be a permissions issue — retry with the sudo parameter set to true.");
+
             return sb.ToString();
         }
         finally
@@ -139,6 +142,10 @@ public static class SshTools
                 }
 
                 sb.AppendLine($"[exit: {cmd.ExitStatus}]");
+
+                if (!sudo && cmd.ExitStatus != 0 && IsPermissionError(stderr))
+                    sb.AppendLine("Tip: this may be a permissions issue — retry with the sudo parameter set to true.");
+
                 sb.AppendLine();
             }
 
@@ -186,7 +193,12 @@ public static class SshTools
             sftpCommand.Execute();
 
             if (sftpCommand.ExitStatus != 0)
-                return $"Error writing file: {sftpCommand.Error}";
+            {
+                var errorMsg = $"Error writing file: {sftpCommand.Error}";
+                if (!sudo && IsPermissionError(sftpCommand.Error))
+                    errorMsg += "\nTip: this may be a permissions issue — retry with the sudo parameter set to true.";
+                return errorMsg;
+            }
 
             using var verify = client.CreateCommand($"wc -c < {EscapeArg(path)}");
             var size = verify.Execute().Trim();
@@ -354,6 +366,19 @@ public static class SshTools
             return $"The private key for session '{puttySession.DisplayName}' requires a passphrase. " +
                    "Please call again with the password parameter set to the key passphrase.";
         }
+    }
+
+    private static bool IsPermissionError(string? output)
+    {
+        if (string.IsNullOrWhiteSpace(output)) return false;
+        var lower = output.ToLowerInvariant();
+        return lower.Contains("permission denied")
+            || lower.Contains("operation not permitted")
+            || lower.Contains("access denied")
+            || lower.Contains("not permitted")
+            || lower.Contains("must be run as root")
+            || lower.Contains("requires superuser")
+            || lower.Contains("unable to connect to the docker daemon");
     }
 
     private static string EscapeArg(string arg)
