@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "puttymgr": {
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "PuTTYProfileManager/src/PuTTYProfileManager.McpServer/PuTTYProfileManager.McpServer.csproj",
+        "-c",
+        "Release"
+      ]
+    }
+  }
+}
