@@ -56,15 +56,40 @@ public static class SshConnectionFactory
 
         // Platform-native PuTTY source
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
             services.Add(new RegistrySessionService());
-        else
-            services.Add(new UnixSessionService());
+        }
+        else if (WslEnvironment.IsWsl)
+        {
+            // Under WSL: read PuTTY sessions from Windows Registry via reg.exe
+            services.Add(new WslRegistrySessionService());
 
-        // Also read ~/.ssh/config on all platforms
+            // Also check for WSL-native PuTTY sessions
+            var unixSessionsDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".putty", "sessions");
+            if (Directory.Exists(unixSessionsDir))
+                services.Add(new UnixSessionService());
+        }
+        else
+        {
+            services.Add(new UnixSessionService());
+        }
+
+        // Linux-native SSH config (~/.ssh/config)
         var sshConfigPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ssh", "config");
         if (File.Exists(sshConfigPath))
             services.Add(new SshConfigSessionService(sshConfigPath));
+
+        // Under WSL, also check the Windows-side SSH config
+        if (WslEnvironment.IsWsl)
+        {
+            var windowsSshConfig = WslEnvironment.WindowsUserProfile is not null
+                ? Path.Combine(WslEnvironment.WindowsUserProfile, ".ssh", "config")
+                : null;
+            if (windowsSshConfig is not null && File.Exists(windowsSshConfig))
+                services.Add(new SshConfigSessionService(windowsSshConfig));
+        }
 
         return services;
     }
@@ -73,6 +98,9 @@ public static class SshConnectionFactory
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             return new RegistrySessionService();
+
+        if (WslEnvironment.IsWsl)
+            return new WslRegistrySessionService();
 
         return new SshConfigSessionService();
     }
@@ -238,6 +266,10 @@ public static class SshConnectionFactory
 
     private static string? ResolveKeyPath(string keyPath)
     {
+        // Under WSL, translate Windows paths (C:\Users\...) to WSL mount paths (/mnt/c/Users/...)
+        if (WslEnvironment.IsWsl)
+            keyPath = WslEnvironment.ConvertWindowsToWslPath(keyPath);
+
         // Use the key file directly if it exists (works for both .ppk and OpenSSH formats now)
         if (File.Exists(keyPath))
             return keyPath;
