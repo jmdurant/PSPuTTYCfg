@@ -177,7 +177,8 @@ public static class SshTools
         [Description("Content to write to the file")] string content,
         [Description("SSH username (optional)")] string? username = null,
         [Description("SSH password or key passphrase (optional, cached after first use)")] string? password = null,
-        [Description("Write the file with sudo (default: false)")] bool sudo = false)
+        [Description("Write the file with sudo (default: false)")] bool sudo = false,
+        [Description("Overwrite if the file already exists (default: false)")] bool overwrite = false)
     {
         var authError = ConnectWithCache(session, username, password, out var puttySession, out var client);
         if (authError is not null) return authError;
@@ -187,6 +188,14 @@ public static class SshTools
         using (client)
         try
         {
+            if (!overwrite)
+            {
+                using var check = client!.CreateCommand($"{sudoPrefix}test -e {EscapeArg(path)} && echo EXISTS");
+                var checkResult = check.Execute().Trim();
+                if (checkResult == "EXISTS")
+                    return $"File already exists: {path} on {puttySession!.DisplayName}. Set overwrite to true to replace it.";
+            }
+
             using var sftpCommand = client!.CreateCommand(
                 $"{sudoPrefix}cat > {EscapeArg(path)} << 'PUTTYMGR_EOF'\n{content}\nPUTTYMGR_EOF");
             sftpCommand.CommandTimeout = TimeSpan.FromSeconds(30);
@@ -218,7 +227,8 @@ public static class SshTools
         [Description("Path to the local file to upload")] string localPath,
         [Description("Destination path on the remote system")] string remotePath,
         [Description("SSH username (optional)")] string? username = null,
-        [Description("SSH password or key passphrase (optional, cached after first use)")] string? password = null)
+        [Description("SSH password or key passphrase (optional, cached after first use)")] string? password = null,
+        [Description("Overwrite if the remote file already exists (default: false)")] bool overwrite = false)
     {
         if (!File.Exists(localPath))
             throw new FileNotFoundException($"Local file not found: {localPath}", localPath);
@@ -228,6 +238,17 @@ public static class SshTools
 
         using (client)
         {
+            if (!overwrite)
+            {
+                using var check = client!.CreateCommand($"test -e {EscapeArg(remotePath)} && echo EXISTS");
+                var checkResult = check.Execute().Trim();
+                if (checkResult == "EXISTS")
+                {
+                    client.Disconnect();
+                    return $"File already exists: {remotePath} on {puttySession!.DisplayName}. Set overwrite to true to replace it.";
+                }
+            }
+
             var scpClient = new ScpClient(client!.ConnectionInfo);
             try
             {
@@ -255,8 +276,12 @@ public static class SshTools
         [Description("Path to the file on the remote system")] string remotePath,
         [Description("Local destination path")] string localPath,
         [Description("SSH username (optional)")] string? username = null,
-        [Description("SSH password or key passphrase (optional, cached after first use)")] string? password = null)
+        [Description("SSH password or key passphrase (optional, cached after first use)")] string? password = null,
+        [Description("Overwrite if the local file already exists (default: false)")] bool overwrite = false)
     {
+        if (!overwrite && File.Exists(localPath))
+            return $"File already exists: {localPath}. Set overwrite to true to replace it.";
+
         var authError = ConnectWithCache(session, username, password, out var puttySession, out var client);
         if (authError is not null) return authError;
 
