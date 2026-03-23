@@ -7,7 +7,7 @@ var builder = Host.CreateApplicationBuilder(args);
 
 builder.Logging.AddConsole(options =>
 {
-    options.LogToStandardErrorThreshold = LogLevel.Warning;
+    options.LogToStandardErrorThreshold = LogLevel.Trace;
 });
 
 builder.Services
