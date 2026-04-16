@@ -47,6 +47,7 @@ public static class SshTools
      Description("Execute a command on a remote system via SSH using a session profile. " +
                   "Reads profiles from PuTTY (Windows) and ~/.ssh/config (all platforms). " +
                   "Use list_sessions first to see available profiles. " +
+                  "Connections are pooled and reused across calls to avoid per-command handshake cost. " +
                   "If authentication fails, provide a password/passphrase — it will be cached " +
                   "for the remainder of the session so you won't need to pass it again.")]
     public static string SshExecute(
@@ -57,49 +58,45 @@ public static class SshTools
         [Description("Command timeout in seconds (default: 30)")] int timeout = 30,
         [Description("Run the command with sudo (default: false)")] bool sudo = false)
     {
-        var authError = ConnectWithCache(session, username, password, out var puttySession, out var client, timeout);
-        if (authError is not null) return authError;
-
-        var effectiveCommand = sudo ? $"sudo {command}" : command;
-
-        using (client)
-        try
+        if (TryAcquire(session, username, password, timeout, out var lease, out var authError))
         {
-            using var cmd = client!.CreateCommand(effectiveCommand);
-            cmd.CommandTimeout = TimeSpan.FromSeconds(timeout);
-            var result = cmd.Execute();
-            var stderr = cmd.Error;
-            var exitCode = cmd.ExitStatus;
-
-            var sb = new StringBuilder();
-            sb.AppendLine($"[{puttySession!.DisplayName}] $ {effectiveCommand}");
-            sb.AppendLine($"Exit code: {exitCode}");
-
-            if (!string.IsNullOrWhiteSpace(result))
+            using (lease)
             {
-                sb.AppendLine("--- stdout ---");
-                sb.Append(result);
-                if (!result.EndsWith('\n'))
-                    sb.AppendLine();
+                var effectiveCommand = sudo ? $"sudo {command}" : command;
+                using var cmd = lease.Client.CreateCommand(effectiveCommand);
+                cmd.CommandTimeout = TimeSpan.FromSeconds(timeout);
+                var result = cmd.Execute();
+                var stderr = cmd.Error;
+                var exitCode = cmd.ExitStatus;
+
+                var sb = new StringBuilder();
+                sb.AppendLine($"[{lease.Session.DisplayName}] $ {effectiveCommand}");
+                sb.AppendLine($"Exit code: {exitCode}");
+
+                if (!string.IsNullOrWhiteSpace(result))
+                {
+                    sb.AppendLine("--- stdout ---");
+                    sb.Append(result);
+                    if (!result.EndsWith('\n'))
+                        sb.AppendLine();
+                }
+
+                if (!string.IsNullOrWhiteSpace(stderr))
+                {
+                    sb.AppendLine("--- stderr ---");
+                    sb.Append(stderr);
+                    if (!stderr.EndsWith('\n'))
+                        sb.AppendLine();
+                }
+
+                if (!sudo && exitCode != 0 && IsPermissionError(stderr))
+                    sb.AppendLine("Tip: this may be a permissions issue — retry with the sudo parameter set to true.");
+
+                return sb.ToString();
             }
-
-            if (!string.IsNullOrWhiteSpace(stderr))
-            {
-                sb.AppendLine("--- stderr ---");
-                sb.Append(stderr);
-                if (!stderr.EndsWith('\n'))
-                    sb.AppendLine();
-            }
-
-            if (!sudo && exitCode != 0 && IsPermissionError(stderr))
-                sb.AppendLine("Tip: this may be a permissions issue — retry with the sudo parameter set to true.");
-
-            return sb.ToString();
         }
-        finally
-        {
-            client!.Disconnect();
-        }
+
+        return authError!;
     }
 
     [McpServerTool(Name = "ssh_execute_multi"),
@@ -114,14 +111,13 @@ public static class SshTools
         [Description("Per-command timeout in seconds (default: 30)")] int timeout = 30,
         [Description("Run all commands with sudo (default: false)")] bool sudo = false)
     {
-        var authError = ConnectWithCache(session, username, password, out var puttySession, out var client, timeout);
-        if (authError is not null) return authError;
+        if (!TryAcquire(session, username, password, timeout, out var lease, out var authError))
+            return authError!;
 
-        using (client)
-        try
+        using (lease)
         {
             var sb = new StringBuilder();
-            sb.AppendLine($"Connected to {puttySession!.DisplayName} ({puttySession.HostName})");
+            sb.AppendLine($"Connected to {lease.Session.DisplayName} ({lease.Session.HostName})");
             sb.AppendLine();
 
             foreach (var command in commands)
@@ -129,7 +125,7 @@ public static class SshTools
                 var effectiveCommand = sudo ? $"sudo {command}" : command;
                 sb.AppendLine($"$ {effectiveCommand}");
 
-                using var cmd = client!.CreateCommand(effectiveCommand);
+                using var cmd = lease.Client.CreateCommand(effectiveCommand);
                 cmd.CommandTimeout = TimeSpan.FromSeconds(timeout);
                 var result = cmd.Execute();
                 var stderr = cmd.Error;
@@ -150,10 +146,6 @@ public static class SshTools
             }
 
             return sb.ToString();
-        }
-        finally
-        {
-            client!.Disconnect();
         }
     }
 
@@ -180,23 +172,22 @@ public static class SshTools
         [Description("Write the file with sudo (default: false)")] bool sudo = false,
         [Description("Overwrite if the file already exists (default: false)")] bool overwrite = false)
     {
-        var authError = ConnectWithCache(session, username, password, out var puttySession, out var client);
-        if (authError is not null) return authError;
+        if (!TryAcquire(session, username, password, 30, out var lease, out var authError))
+            return authError!;
 
-        var sudoPrefix = sudo ? "sudo " : "";
-
-        using (client)
-        try
+        using (lease)
         {
+            var sudoPrefix = sudo ? "sudo " : "";
+
             if (!overwrite)
             {
-                using var check = client!.CreateCommand($"{sudoPrefix}test -e {EscapeArg(path)} && echo EXISTS");
+                using var check = lease.Client.CreateCommand($"{sudoPrefix}test -e {EscapeArg(path)} && echo EXISTS");
                 var checkResult = check.Execute().Trim();
                 if (checkResult == "EXISTS")
-                    return $"File already exists: {path} on {puttySession!.DisplayName}. Set overwrite to true to replace it.";
+                    return $"File already exists: {path} on {lease.Session.DisplayName}. Set overwrite to true to replace it.";
             }
 
-            using var sftpCommand = client!.CreateCommand(
+            using var sftpCommand = lease.Client.CreateCommand(
                 $"{sudoPrefix}cat > {EscapeArg(path)} << 'PUTTYMGR_EOF'\n{content}\nPUTTYMGR_EOF");
             sftpCommand.CommandTimeout = TimeSpan.FromSeconds(30);
             sftpCommand.Execute();
@@ -209,14 +200,10 @@ public static class SshTools
                 return errorMsg;
             }
 
-            using var verify = client.CreateCommand($"wc -c < {EscapeArg(path)}");
+            using var verify = lease.Client.CreateCommand($"wc -c < {EscapeArg(path)}");
             var size = verify.Execute().Trim();
 
-            return $"Written {size} bytes to {path} on {puttySession!.DisplayName}";
-        }
-        finally
-        {
-            client!.Disconnect();
+            return $"Written {size} bytes to {path} on {lease.Session.DisplayName}";
         }
     }
 
@@ -233,23 +220,20 @@ public static class SshTools
         if (!File.Exists(localPath))
             throw new FileNotFoundException($"Local file not found: {localPath}", localPath);
 
-        var authError = ConnectWithCache(session, username, password, out var puttySession, out var client);
-        if (authError is not null) return authError;
+        if (!TryAcquire(session, username, password, 30, out var lease, out var authError))
+            return authError!;
 
-        using (client)
+        using (lease)
         {
             if (!overwrite)
             {
-                using var check = client!.CreateCommand($"test -e {EscapeArg(remotePath)} && echo EXISTS");
+                using var check = lease.Client.CreateCommand($"test -e {EscapeArg(remotePath)} && echo EXISTS");
                 var checkResult = check.Execute().Trim();
                 if (checkResult == "EXISTS")
-                {
-                    client.Disconnect();
-                    return $"File already exists: {remotePath} on {puttySession!.DisplayName}. Set overwrite to true to replace it.";
-                }
+                    return $"File already exists: {remotePath} on {lease.Session.DisplayName}. Set overwrite to true to replace it.";
             }
 
-            var scpClient = new ScpClient(client!.ConnectionInfo);
+            var scpClient = new ScpClient(lease.Client.ConnectionInfo);
             try
             {
                 scpClient.Connect();
@@ -258,13 +242,12 @@ public static class SshTools
                 scpClient.Upload(fileStream, remotePath);
 
                 var size = new FileInfo(localPath).Length;
-                return $"Uploaded {localPath} ({size:N0} bytes) to {puttySession!.DisplayName}:{remotePath}";
+                return $"Uploaded {localPath} ({size:N0} bytes) to {lease.Session.DisplayName}:{remotePath}";
             }
             finally
             {
                 scpClient.Disconnect();
                 scpClient.Dispose();
-                client.Disconnect();
             }
         }
     }
@@ -282,12 +265,12 @@ public static class SshTools
         if (!overwrite && File.Exists(localPath))
             return $"File already exists: {localPath}. Set overwrite to true to replace it.";
 
-        var authError = ConnectWithCache(session, username, password, out var puttySession, out var client);
-        if (authError is not null) return authError;
+        if (!TryAcquire(session, username, password, 30, out var lease, out var authError))
+            return authError!;
 
-        using (client)
+        using (lease)
         {
-            var scpClient = new ScpClient(client!.ConnectionInfo);
+            var scpClient = new ScpClient(lease.Client.ConnectionInfo);
             try
             {
                 scpClient.Connect();
@@ -300,13 +283,12 @@ public static class SshTools
                 scpClient.Download(remotePath, fileStream);
 
                 var size = new FileInfo(localPath).Length;
-                return $"Downloaded {puttySession!.DisplayName}:{remotePath} ({size:N0} bytes) to {localPath}";
+                return $"Downloaded {lease.Session.DisplayName}:{remotePath} ({size:N0} bytes) to {localPath}";
             }
             finally
             {
                 scpClient.Disconnect();
                 scpClient.Dispose();
-                client.Disconnect();
             }
         }
     }
@@ -353,44 +335,82 @@ public static class SshTools
         return sb.ToString();
     }
 
-    /// <summary>
-    /// Resolve a session and connect an SSH client with credential caching and auth error handling.
-    /// Returns an error message string if auth fails, or null on success.
-    /// </summary>
-    private static string? ConnectWithCache(
-        string session, string? username, string? password,
-        out PuTTYProfileManager.Core.Models.PuttySession? puttySession,
-        out SshClient? client,
-        int timeout = 30)
+    [McpServerTool(Name = "ssh_disconnect"),
+     Description("Explicitly disconnect a pooled SSH session. " +
+                  "Useful when a connection is stuck or you want to force a fresh handshake on the next call.")]
+    public static string SshDisconnect(
+        [Description("Name of the session profile to disconnect")] string session)
     {
-        puttySession = SshConnectionFactory.FindSession(session)
-            ?? throw new InvalidOperationException($"Session '{session}' not found.");
+        var removed = SshConnectionPool.Disconnect(session);
+        return removed
+            ? $"Disconnected pooled session '{session}'."
+            : $"No pooled connection for session '{session}' (nothing to disconnect).";
+    }
 
-        var effectivePassword = SshConnectionFactory.ResolvePassword(puttySession.DisplayName, password);
+    [McpServerTool(Name = "ssh_pool_status"),
+     Description("Show the current state of the SSH connection pool: which sessions are live, idle time, and whether any are in use.")]
+    public static string SshPoolStatus()
+    {
+        var snapshot = SshConnectionPool.Snapshot();
+        if (snapshot.Count == 0)
+            return "SSH connection pool is empty.";
 
-        client = SshConnectionFactory.CreateClient(puttySession, username, effectivePassword);
-        client.ConnectionInfo.Timeout = TimeSpan.FromSeconds(timeout);
+        var sb = new StringBuilder();
+        sb.AppendLine($"SSH connection pool ({snapshot.Count} session{(snapshot.Count == 1 ? "" : "s")}):");
+        sb.AppendLine();
+        sb.AppendLine($"  {"Session",-25} {"Host",-35} {"Connected",-10} {"InUse",-6} Idle");
+        foreach (var entry in snapshot.OrderBy(e => e.SessionName))
+        {
+            var idle = DateTime.UtcNow - entry.LastUsedUtc;
+            sb.AppendLine(
+                $"  {entry.SessionName,-25} {entry.Host,-35} " +
+                $"{(entry.Connected ? "yes" : "no"),-10} {(entry.InUse ? "yes" : "no"),-6} " +
+                $"{FormatIdle(idle)}");
+        }
+        return sb.ToString();
+    }
 
+    private static string FormatIdle(TimeSpan t)
+    {
+        if (t.TotalSeconds < 60) return $"{(int)t.TotalSeconds}s";
+        if (t.TotalMinutes < 60) return $"{(int)t.TotalMinutes}m";
+        return $"{t.TotalHours:F1}h";
+    }
+
+    /// <summary>
+    /// Wrap pool acquisition with friendly auth-error messages for the tool layer.
+    /// </summary>
+    private static bool TryAcquire(
+        string session, string? username, string? password, int timeout,
+        out SshConnectionPool.Lease lease, out string? error)
+    {
         try
         {
-            client.Connect();
-            return null;
+            lease = SshConnectionPool.Acquire(session, username, password, timeout);
+            error = null;
+            return true;
         }
         catch (SshAuthenticationException)
         {
-            SshConnectionFactory.ClearCredential(puttySession.DisplayName);
-            client.Dispose();
-            client = null;
-            return $"Authentication failed for session '{puttySession.DisplayName}'. " +
-                   "Please call again with the password parameter. It will be cached for subsequent calls.";
+            SshConnectionFactory.ClearCredential(ResolveSessionName(session));
+            SshConnectionPool.Disconnect(session);
+            lease = default;
+            error = $"Authentication failed for session '{session}'. " +
+                    "Please call again with the password parameter. It will be cached for subsequent calls.";
+            return false;
         }
         catch (SshPassPhraseNullOrEmptyException)
         {
-            client.Dispose();
-            client = null;
-            return $"The private key for session '{puttySession.DisplayName}' requires a passphrase. " +
-                   "Please call again with the password parameter set to the key passphrase.";
+            lease = default;
+            error = $"The private key for session '{session}' requires a passphrase. " +
+                    "Please call again with the password parameter set to the key passphrase.";
+            return false;
         }
+    }
+
+    private static string ResolveSessionName(string session)
+    {
+        return SshConnectionFactory.FindSession(session)?.DisplayName ?? session;
     }
 
     private static bool IsPermissionError(string? output)
